@@ -1,6 +1,11 @@
+import logging
 import os
+from datetime import datetime
+
+import boto3
 import requests
 import pandas as pd
+from botocore.exceptions import ClientError
 
 from dotenv import load_dotenv
 from sqlalchemy import create_engine
@@ -40,8 +45,22 @@ def save_to_postgres(path):
     df.to_sql('air_quality', engine, if_exists='append', index=False)
 
 
-# if __name__ == '__main__':
-#     path_to_file = os.getenv("PATH_TO_CSV")
-#     data_to_save = gather_data()
-#     save_data_to_dataframe(data_to_save, path_to_file)
-#     save_to_postgres(path_to_file)
+def upload_to_s3(filename, object_name=None):
+    if object_name is None:
+        date_str = datetime.now().strftime("%Y-%m-%dT%H-%M-%S")
+        base_filename = os.path.basename(filename)
+        object_name = f"airflow_exports/{base_filename}_{date_str}.csv"
+
+    bucket = os.getenv("S3_BUCKET_NAME")
+
+    s3 = boto3.client("s3")
+    try:
+        s3.upload_file(filename, bucket, object_name)
+    except ClientError as e:
+        logging.error(e)
+        return False
+    return True
+
+
+if __name__ == '__main__':
+    upload_to_s3()
